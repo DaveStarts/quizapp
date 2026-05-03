@@ -1,4 +1,3 @@
-import React from 'react';
 import { ArrowRight, Home, Lock } from 'lucide-react';
 
 interface ResultScreenProps {

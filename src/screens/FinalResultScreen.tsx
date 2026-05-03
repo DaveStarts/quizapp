@@ -1,4 +1,3 @@
-import React from 'react';
 import { ALL_QUESTIONS } from '../data/questions';
 import {
   CheckCircle2,

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Play, Plus, Trash2, Trophy } from 'lucide-react'; // Trophy Icon hinzugefügt
 
 interface LobbyScreenProps {
