@@ -317,10 +317,6 @@ export default function App() {
     case 'result':
       if (!currentGame)
         return <div className="text-white p-10">Lade Ergebnis...</div>;
-      const resStep =
-        (user.username === currentGame.challenger
-          ? currentGame.challengerStep
-          : currentGame.opponentStep) || 0;
 
       return (
         <ResultScreen
