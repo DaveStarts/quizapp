@@ -44,6 +44,13 @@ export default function FinalResultScreen({
   // AUSWERTUNG
   const questions =
     ALL_QUESTIONS[game.topic] || ALL_QUESTIONS['Allgemeinwissen'];
+
+  // 1. FIX: Wir nehmen die ECHTEN, synchronisierten Indizes aus dem Spiel!
+  // Fallback ist ein Array von 0-9, falls etwas schiefgeht.
+  const questionIndices = game.questionIndices || [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+  ];
+
   const myScore = isChallenger ? game.challengerScore : game.opponentScore;
   const oppScore = isChallenger ? game.opponentScore : game.challengerScore;
 
@@ -103,27 +110,48 @@ export default function FinalResultScreen({
 
         {/* Detaillierte Übersicht der Fragen */}
         <h3 className="text-xl font-bold mb-4 ml-2 text-slate-200">
-          Alle Fragen im Überblick
+          Alle 10 Fragen im Überblick
         </h3>
+
+        {/* 2. FIX: Wir iterieren über die synchronisierten Indizes! */}
         <div className="space-y-6 mb-10">
-          {[0, 1, 2, 3].map((idx) => {
-            const q = questions[idx];
+          {questionIndices.map((realQuestionIndex: number, stepIdx: number) => {
+            const q = questions[realQuestionIndex];
             if (!q) return null;
 
-            const ans = game.answers[idx.toString()];
+            const ans = game.answers?.[stepIdx.toString()];
             const myAns = ans?.[isChallenger ? 'challenger' : 'opponent'];
             const oppAns = ans?.[!isChallenger ? 'challenger' : 'opponent'];
 
-            // Die richtige Antwort aus dem Array auslesen
             const correctAnswerText = q.a[q.correct];
+
+            // --- 3. FIX: LOGIK FÜR ANTWORT-TEXTE ---
+            // Prüfen, ob wir ein Boolean (alte Version) oder einen Index (neue Version) in der DB haben
+            const myAnsIsCorrect =
+              typeof myAns === 'boolean' ? myAns : myAns === q.correct;
+            const oppAnsIsCorrect =
+              typeof oppAns === 'boolean' ? oppAns : oppAns === q.correct;
+
+            const getAnswerText = (ansValue: any, isCorrect: boolean) => {
+              if (
+                ansValue === null ||
+                ansValue === undefined ||
+                ansValue === -1
+              )
+                return 'Zeit abgelaufen';
+              // Wenn die Datenbank die Zahl (Index) gespeichert hat, holen wir den genauen Text!
+              if (typeof ansValue === 'number') return q.a[ansValue];
+              // Fallback für alte Spiele, wo nur true/false gespeichert wurde
+              return isCorrect ? correctAnswerText : 'Falsch beantwortet';
+            };
 
             return (
               <div
-                key={idx}
+                key={stepIdx}
                 className="bg-slate-800 p-5 rounded-3xl border border-slate-700 shadow-lg"
               >
                 <p className="font-semibold mb-4 leading-snug text-lg">
-                  {idx + 1}. {q.q}
+                  {stepIdx + 1}. {q.q}
                 </p>
 
                 {/* Anzeige der korrekten Lösung */}
@@ -142,7 +170,7 @@ export default function FinalResultScreen({
                   {/* Meine Antwort-Box */}
                   <div
                     className={`flex flex-col p-3 rounded-xl border ${
-                      myAns
+                      myAnsIsCorrect
                         ? 'bg-emerald-500/10 border-emerald-500/30'
                         : 'bg-red-500/10 border-red-500/30'
                     }`}
@@ -151,17 +179,17 @@ export default function FinalResultScreen({
                       Du
                     </span>
                     <div className="flex items-center">
-                      {myAns ? (
+                      {myAnsIsCorrect ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2 flex-shrink-0" />
                       ) : (
                         <XCircle className="w-4 h-4 text-red-500 mr-2 flex-shrink-0" />
                       )}
                       <span
                         className={`text-sm font-bold ${
-                          myAns ? 'text-emerald-400' : 'text-red-400'
-                        }`}
+                          myAnsIsCorrect ? 'text-emerald-400' : 'text-red-400'
+                        } line-clamp-2`}
                       >
-                        {myAns ? correctAnswerText : 'Falsch'}
+                        {getAnswerText(myAns, myAnsIsCorrect)}
                       </span>
                     </div>
                   </div>
@@ -169,26 +197,26 @@ export default function FinalResultScreen({
                   {/* Gegner Antwort-Box */}
                   <div
                     className={`flex flex-col p-3 rounded-xl border ${
-                      oppAns
+                      oppAnsIsCorrect
                         ? 'bg-emerald-500/10 border-emerald-500/30'
                         : 'bg-red-500/10 border-red-500/30'
                     }`}
                   >
-                    <span className="text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">
+                    <span className="text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider truncate">
                       {opponentName}
                     </span>
                     <div className="flex items-center">
-                      {oppAns ? (
+                      {oppAnsIsCorrect ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2 flex-shrink-0" />
                       ) : (
                         <XCircle className="w-4 h-4 text-red-500 mr-2 flex-shrink-0" />
                       )}
                       <span
                         className={`text-sm font-bold ${
-                          oppAns ? 'text-emerald-400' : 'text-red-400'
-                        }`}
+                          oppAnsIsCorrect ? 'text-emerald-400' : 'text-red-400'
+                        } line-clamp-2`}
                       >
-                        {oppAns ? correctAnswerText : 'Falsch'}
+                        {getAnswerText(oppAns, oppAnsIsCorrect)}
                       </span>
                     </div>
                   </div>

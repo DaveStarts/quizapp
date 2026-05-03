@@ -76,7 +76,7 @@ export default function ResultScreen({
             onClick={onNext}
             className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-2xl font-bold text-xl flex items-center justify-center transition-all active:scale-95 shadow-lg shadow-indigo-500/20"
           >
-            {myStep < 3 ? 'Nächste Frage' : 'Zur Auswertung'}
+            {myStep < 9 ? 'Nächste Frage' : 'Zur Auswertung'}
             <ArrowRight className="ml-3 w-6 h-6" />
           </button>
 

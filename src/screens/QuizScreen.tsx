@@ -5,7 +5,7 @@ import { ALL_QUESTIONS } from '../data/questions';
 interface QuizScreenProps {
   topic: string;
   questionIdx: number;
-  onFinish: (isCorrect: boolean) => void;
+  onFinish: (selectedIdx: number) => void;
   onExit: () => void;
   username: string;
   game: any; // Enthält jetzt idealerweise game.questionIndices
@@ -62,7 +62,7 @@ export default function QuizScreen({
   const handleAnswer = (selectedIdx: number) => {
     if (hasAnsweredLocal || myAnswerInDB !== null) return;
     setHasAnsweredLocal(true);
-    onFinish(selectedIdx === q?.correct);
+    onFinish(selectedIdx);
   };
 
   if (!q) {

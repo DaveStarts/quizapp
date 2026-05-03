@@ -102,8 +102,9 @@ export default function App() {
 
     const bothAnswered =
       ans &&
-      typeof ans.challenger === 'boolean' &&
-      typeof ans.opponent === 'boolean';
+      (typeof ans.challenger === 'boolean' ||
+        typeof ans.challenger === 'number') &&
+      (typeof ans.opponent === 'boolean' || typeof ans.opponent === 'number');
 
     if (bothAnswered) {
       setScreen('result');
@@ -142,8 +143,8 @@ export default function App() {
     }
   };
 
-  // 5. Antwort abgeben
-  const handleFinishTurn = async (isCorrect: boolean) => {
+  // 5. Antwort abgeben (SPEICHERT JETZT DEN INDEX!)
+  const handleFinishTurn = async (selectedIdx: number) => {
     if (!user || !selectedGameId) return;
     const game = activeGames.find((g) => g.id === selectedGameId);
     if (!game) return;
@@ -153,12 +154,19 @@ export default function App() {
       (isChallenger ? game.challengerStep : game.opponentStep) || 0;
     const qKey = myStep.toString();
 
+    // 1. Richtige Frage aus dem Katalog holen, um zu prüfen, ob es richtig war (für Punktevergabe)
+    const topicQuestions =
+      ALL_QUESTIONS[game.topic] || ALL_QUESTIONS['Anatomie & Physiologie'];
+    const realQIdx = game.questionIndices[myStep];
+    const isCorrect = selectedIdx === topicQuestions[realQIdx].correct;
+
     const updatedAnswers = { ...(game.answers || {}) };
     if (!updatedAnswers[qKey])
       updatedAnswers[qKey] = { challenger: null, opponent: null };
 
-    if (isChallenger) updatedAnswers[qKey].challenger = isCorrect;
-    else updatedAnswers[qKey].opponent = isCorrect;
+    // 2. WICHTIG: Wir speichern jetzt die ZAHL in die Datenbank (nicht mehr true/false)
+    if (isChallenger) updatedAnswers[qKey].challenger = selectedIdx;
+    else updatedAnswers[qKey].opponent = selectedIdx;
 
     await updateDoc(doc(db, 'games', selectedGameId), {
       answers: updatedAnswers,
