@@ -41,7 +41,7 @@ export default function ResultScreen({
 
         <h2 className="text-3xl font-bold mb-2">Runde beendet!</h2>
         <p className="text-slate-500 mb-8 font-medium">
-          Frage {myStep + 1} von 4
+          Frage {myStep + 1} von 10
         </p>
 
         <div className="bg-slate-900/50 rounded-2xl p-6 mb-8 border border-slate-700/50">

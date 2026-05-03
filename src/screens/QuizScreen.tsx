@@ -20,8 +20,7 @@ export default function QuizScreen({
   game,
 }: QuizScreenProps) {
   // 1. Grundmenge der Fragen für das Thema holen
-  const allTopicQuestions =
-    ALL_QUESTIONS[topic] || ALL_QUESTIONS['Allgemeinwissen'];
+  const allTopicQuestions = ALL_QUESTIONS[topic] || ALL_QUESTIONS['Hygiene'];
 
   // 2. Synchronisierte Fragen-Auswahl
   // Wir prüfen, ob im Firebase-Spielobjekt bereits eine feste Fragen-Reihenfolge hinterlegt wurde.
@@ -48,7 +47,7 @@ export default function QuizScreen({
 
   useEffect(() => {
     setHasAnsweredLocal(false);
-    setTimeLeft(10);
+    setTimeLeft(90);
   }, [questionIdx]);
 
   useEffect(() => {
