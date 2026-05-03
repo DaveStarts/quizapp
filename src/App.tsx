@@ -21,6 +21,7 @@ import SetupScreen from './screens/SetupScreen';
 import QuizScreen from './screens/QuizScreen';
 import ResultScreen from './screens/ResultScreen';
 import FinalResultScreen from './screens/FinalResultScreen';
+import { ALL_QUESTIONS } from './data/questions'; // WICHTIG: Import für die Zufallslogik
 
 export type Screen =
   | 'login'
@@ -35,6 +36,17 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('login');
   const [activeGames, setActiveGames] = useState<any[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+
+  // --- HILFSFUNKTION FÜR RANDOM FRAGEN ---
+  const generateQuestionIndices = (topic: string) => {
+    const questions =
+      ALL_QUESTIONS[topic] || ALL_QUESTIONS['Anatomie & Physiologie'];
+    const total = questions.length;
+    // Erstelle Liste aller verfügbaren Indizes
+    const allIndices = Array.from({ length: total }, (_, i) => i);
+    // Mischen und die ersten 10 ziehen
+    return allIndices.sort(() => Math.random() - 0.5).slice(0, 10);
+  };
 
   // 1. Echtzeit-Überwachung der Spiele
   useEffect(() => {
@@ -54,7 +66,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // 1.5 Echtzeit-Überwachung des eigenen User-Profils (Sucht sicher nach dem Usernamen!)
+  // 1.5 Echtzeit-Überwachung des eigenen User-Profils
   useEffect(() => {
     if (!user?.username) return;
 
@@ -64,7 +76,6 @@ export default function App() {
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        // Zieht den echten Punktestand und die Dokument-ID in den State
         const userData = snapshot.docs[0].data();
         setUser((prevUser: any) => ({
           ...prevUser,
@@ -77,7 +88,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user?.username]);
 
-  // 2. Automatischer Wechsel zum Resultat für die aktuelle Frage
+  // 2. Automatischer Wechsel zum Resultat
   useEffect(() => {
     if (!selectedGameId || screen !== 'quiz') return;
 
@@ -89,14 +100,12 @@ export default function App() {
       (isChallenger ? game.challengerStep : game.opponentStep) || 0;
     const ans = game.answers?.[myStep.toString()];
 
-    // Wechsel zum Ergebnis, sobald beide für MEINEN aktuellen Schritt geantwortet haben
-    if (
+    const bothAnswered =
       ans &&
-      ans.challenger !== null &&
-      ans.challenger !== undefined &&
-      ans.opponent !== null &&
-      ans.opponent !== undefined
-    ) {
+      typeof ans.challenger === 'boolean' &&
+      typeof ans.opponent === 'boolean';
+
+    if (bothAnswered) {
       setScreen('result');
     }
   }, [activeGames, selectedGameId, screen, user]);
@@ -107,10 +116,13 @@ export default function App() {
     setScreen('lobby');
   };
 
-  // 4. Spiel erstellen (Herausforderung)
+  // 4. Spiel erstellen (Herausforderung) - GEÄNDERT FÜR RANDOM FRAGEN
   const handleChallenge = async (opponentName: string, topic: string) => {
     if (!user) return;
     try {
+      // Generiere hier das Set an Fragen, das für BEIDE gilt
+      const randomIndices = generateQuestionIndices(topic);
+
       await addDoc(collection(db, 'games'), {
         challenger: user.username,
         opponent: opponentName,
@@ -119,6 +131,7 @@ export default function App() {
         challengerStep: 0,
         opponentStep: 0,
         topic,
+        questionIndices: randomIndices, // Festgelegtes Set in der DB
         status: 'pending',
         answers: {},
         createdAt: Timestamp.now(),
@@ -154,7 +167,7 @@ export default function App() {
     });
   };
 
-  // 6. Nächste Frage (Mit sicherer Punktevergabe am Ende)
+  // 6. Nächste Frage - GEÄNDERT AUF 10 RUNDEN
   const handleNextQuestion = async () => {
     if (!user || !selectedGameId) return;
     const game = activeGames.find((g) => g.id === selectedGameId);
@@ -165,27 +178,24 @@ export default function App() {
       (isChallenger ? game.challengerStep : game.opponentStep) || 0;
     const nextStep = myStep + 1;
 
-    // Wenn es noch Fragen gibt
-    if (nextStep < 4) {
+    // Limit auf 10 Fragen erhöht
+    if (nextStep < 10) {
       await updateDoc(doc(db, 'games', selectedGameId), {
         [isChallenger ? 'challengerStep' : 'opponentStep']: nextStep,
       });
       setScreen('quiz');
     } else {
-      // Wenn ich das Spiel abschließe (Step 4 erreicht)
       await updateDoc(doc(db, 'games', selectedGameId), {
         [isChallenger ? 'challengerStep' : 'opponentStep']: nextStep,
       });
 
-      // Prüfen, ob der Gegner AUCH schon fertig ist
       const otherStep =
         (isChallenger ? game.opponentStep : game.challengerStep) || 0;
 
-      if (otherStep >= 4 && game.status !== 'finished') {
+      if (otherStep >= 10 && game.status !== 'finished') {
         let challengerPoints = 0;
         let opponentPoints = 0;
 
-        // Wer hat gewonnen?
         if (game.challengerScore > game.opponentScore) {
           challengerPoints = 10;
         } else if (game.opponentScore > game.challengerScore) {
@@ -195,12 +205,10 @@ export default function App() {
           opponentPoints = 5;
         }
 
-        // Spiel offiziell beenden
         await updateDoc(doc(db, 'games', selectedGameId), {
           status: 'finished',
         });
 
-        // HILFSFUNKTION: Sucht die korrekte ID des Profils anhand des Namens und verteilt die Punkte auf 'totalpoints'!
         const addPointsToUser = async (
           usernameToReward: string,
           points: number
@@ -218,7 +226,6 @@ export default function App() {
           }
         };
 
-        // Punkte an beide verteilen
         await addPointsToUser(game.challenger, challengerPoints).catch(
           console.error
         );
@@ -226,8 +233,6 @@ export default function App() {
           console.error
         );
       }
-
-      // Für mich geht es jetzt in die Abschlussübersicht
       setScreen('final_result');
     }
   };
@@ -242,23 +247,18 @@ export default function App() {
       return (
         <LobbyScreen
           playerName={user.username}
-          playerScore={user.totalPoints || 0}
+          playerScore={user.totalpoints || 0} // Korrektur Kleinschreibung laut DB
           activeGames={activeGames
             .filter((g) => g.status !== 'finished')
             .map((g) => {
               const isChallenger = user.username === g.challenger;
               const myStep =
                 (isChallenger ? g.challengerStep : g.opponentStep) || 0;
-
               const ans = g.answers?.[myStep.toString()];
               const myAns = ans?.[isChallenger ? 'challenger' : 'opponent'];
 
               const bothDone =
-                !!ans &&
-                ans.challenger !== null &&
-                ans.challenger !== undefined &&
-                ans.opponent !== null &&
-                ans.opponent !== undefined;
+                !!ans && ans.challenger !== null && ans.opponent !== null;
 
               return {
                 ...g,
@@ -295,8 +295,7 @@ export default function App() {
           ? currentGame.challengerStep
           : currentGame.opponentStep) || 0;
 
-      // Guard: Wenn jemand aus der Lobby ins Spiel geht, aber schon bei Step 4 ist
-      if (myQuizStep >= 4) {
+      if (myQuizStep >= 10) {
         setScreen('final_result');
         return <div className="text-white p-10">Lade Auswertung...</div>;
       }
@@ -322,9 +321,6 @@ export default function App() {
         (user.username === currentGame.challenger
           ? currentGame.challengerStep
           : currentGame.opponentStep) || 0;
-
-      if (!currentGame.answers?.[resStep.toString()])
-        return <div className="text-white p-10">Synchronisiere...</div>;
 
       return (
         <ResultScreen
