@@ -91,7 +91,6 @@ export default function TrainingScreen({ onExit }: TrainingScreenProps) {
   const questions = ALL_QUESTIONS[topic];
   const currentQ = questions[questionIndices[currentIndex]];
   const selectedAnswerIdx = answers[currentIndex];
-  const isCorrect = selectedAnswerIdx === currentQ?.correct;
 
   // === RENDER: QUIZ ===
   if (step === 'quiz') {
