@@ -3,6 +3,7 @@ import { db } from './firebase';
 import {
   doc,
   updateDoc,
+  setDoc,
   increment,
   collection,
   addDoc,
@@ -11,6 +12,7 @@ import {
   Timestamp,
   deleteDoc,
   where,
+  getDoc,
   getDocs,
 } from 'firebase/firestore';
 
@@ -21,6 +23,7 @@ import SetupScreen from './screens/SetupScreen';
 import QuizScreen from './screens/QuizScreen';
 import ResultScreen from './screens/ResultScreen';
 import FinalResultScreen from './screens/FinalResultScreen';
+import TrainingScreen from './screens/TrainingScreen';
 import { ALL_QUESTIONS } from './data/questions'; // WICHTIG: Import für die Zufallslogik
 
 export type Screen =
@@ -29,7 +32,8 @@ export type Screen =
   | 'setup'
   | 'quiz'
   | 'result'
-  | 'final_result';
+  | 'final_result'
+  | 'training';
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -88,7 +92,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user?.username]);
 
-  // 2. Automatischer Wechsel zum Resultat
+  // 2. Automatischer Wechsel zum Resultat (ECHTER LIVE-MODUS)
   useEffect(() => {
     if (!selectedGameId || screen !== 'quiz') return;
 
@@ -98,15 +102,17 @@ export default function App() {
     const isChallenger = user.username === game.challenger;
     const myStep =
       (isChallenger ? game.challengerStep : game.opponentStep) || 0;
+
     const ans = game.answers?.[myStep.toString()];
+    if (!ans) return;
 
-    const bothAnswered =
-      ans &&
-      (typeof ans.challenger === 'boolean' ||
-        typeof ans.challenger === 'number') &&
-      (typeof ans.opponent === 'boolean' || typeof ans.opponent === 'number');
+    // DER ULTIMATIVE CHECK: Ist die Antwort eine ECHTE ZAHL (0, 1, 2 oder 3)?
+    // Wenn nicht geantwortet wurde, ist es 'undefined' und der Check schlägt sicher fehl.
+    const challengerAnswered = typeof ans.challenger === 'number';
+    const opponentAnswered = typeof ans.opponent === 'number';
 
-    if (bothAnswered) {
+    // Nur wenn BEIDE wirklich eine Zahl abgegeben haben, geht es weiter ins Resultat
+    if (challengerAnswered && opponentAnswered) {
       setScreen('result');
     }
   }, [activeGames, selectedGameId, screen, user]);
@@ -143,7 +149,7 @@ export default function App() {
     }
   };
 
-  // 5. Antwort abgeben (SPEICHERT JETZT DEN INDEX!)
+  // 5. Antwort abgeben (ECHTER ULTIMATIVER FIX FÜR FIRESTORE)
   const handleFinishTurn = async (selectedIdx: number) => {
     if (!user || !selectedGameId) return;
     const game = activeGames.find((g) => g.id === selectedGameId);
@@ -154,28 +160,44 @@ export default function App() {
       (isChallenger ? game.challengerStep : game.opponentStep) || 0;
     const qKey = myStep.toString();
 
-    // 1. Richtige Frage aus dem Katalog holen, um zu prüfen, ob es richtig war (für Punktevergabe)
+    // --- NEU: Doppel-Antwort-Schutz ---
+    // Verhindert, dass ein fehlerhafter Timer im QuizScreen mehrmals feuert
+    const existingAns =
+      game.answers?.[qKey]?.[isChallenger ? 'challenger' : 'opponent'];
+    if (typeof existingAns === 'number') {
+      console.log('Antwort wurde bereits abgegeben!');
+      return;
+    }
+
     const topicQuestions =
       ALL_QUESTIONS[game.topic] || ALL_QUESTIONS['Anatomie & Physiologie'];
-    const realQIdx = game.questionIndices[myStep];
-    const isCorrect = selectedIdx === topicQuestions[realQIdx].correct;
+    const realQIdx = game.questionIndices
+      ? game.questionIndices[myStep]
+      : myStep;
+    const isCorrect = selectedIdx === topicQuestions[realQIdx]?.correct;
 
-    const updatedAnswers = { ...(game.answers || {}) };
-    if (!updatedAnswers[qKey])
-      updatedAnswers[qKey] = { challenger: null, opponent: null };
+    // --- NEU: Punktgenaue Dot-Notation für Firebase ---
+    // Bsp: "answers.0.challenger"
+    const fieldPath = `answers.${qKey}.${
+      isChallenger ? 'challenger' : 'opponent'
+    }`;
 
-    // 2. WICHTIG: Wir speichern jetzt die ZAHL in die Datenbank (nicht mehr true/false)
-    if (isChallenger) updatedAnswers[qKey].challenger = selectedIdx;
-    else updatedAnswers[qKey].opponent = selectedIdx;
-
-    await updateDoc(doc(db, 'games', selectedGameId), {
-      answers: updatedAnswers,
-      challengerScore: increment(isChallenger && isCorrect ? 1 : 0),
-      opponentScore: increment(!isChallenger && isCorrect ? 1 : 0),
-    });
+    try {
+      // updateDoc ist bei verschachtelten Feldern sicherer als setDoc mit merge
+      await updateDoc(doc(db, 'games', selectedGameId), {
+        [fieldPath]: selectedIdx,
+        challengerScore: increment(isChallenger && isCorrect ? 1 : 0),
+        opponentScore: increment(!isChallenger && isCorrect ? 1 : 0),
+      });
+    } catch (error) {
+      console.error('Fehler beim Speichern der Antwort:', error);
+      alert(
+        'Hoppla! Die Antwort konnte nicht gespeichert werden. Bitte prüfe dein Internet.'
+      );
+    }
   };
 
-  // 6. Nächste Frage - GEÄNDERT AUF 10 RUNDEN
+  // 6. Nächste Frage (RACE-CONDITION GEFIXT)
   const handleNextQuestion = async () => {
     if (!user || !selectedGameId) return;
     const game = activeGames.find((g) => g.id === selectedGameId);
@@ -186,34 +208,45 @@ export default function App() {
       (isChallenger ? game.challengerStep : game.opponentStep) || 0;
     const nextStep = myStep + 1;
 
-    // Limit auf 10 Fragen erhöht
+    const gameRef = doc(db, 'games', selectedGameId);
+
     if (nextStep < 10) {
-      await updateDoc(doc(db, 'games', selectedGameId), {
+      // Normales Weiterschalten zur nächsten Frage
+      await updateDoc(gameRef, {
         [isChallenger ? 'challengerStep' : 'opponentStep']: nextStep,
       });
       setScreen('quiz');
     } else {
-      await updateDoc(doc(db, 'games', selectedGameId), {
+      // Letzter Schritt erreicht: Meinen Status auf 10 setzen
+      await updateDoc(gameRef, {
         [isChallenger ? 'challengerStep' : 'opponentStep']: nextStep,
       });
 
-      const otherStep =
-        (isChallenger ? game.opponentStep : game.challengerStep) || 0;
+      // WICHTIG: Frischen Daten-Schnappschuss direkt aus der Datenbank laden!
+      const freshSnap = await getDoc(gameRef);
+      const freshData = freshSnap.data();
 
-      if (otherStep >= 10 && game.status !== 'finished') {
+      if (!freshData) return;
+
+      const otherStep =
+        (isChallenger ? freshData.opponentStep : freshData.challengerStep) || 0;
+
+      // Wenn der Gegner auch bei 10 ist und das Spiel noch nicht abgerechnet wurde
+      if (otherStep >= 10 && freshData.status !== 'finished') {
         let challengerPoints = 0;
         let opponentPoints = 0;
 
-        if (game.challengerScore > game.opponentScore) {
+        if (freshData.challengerScore > freshData.opponentScore) {
           challengerPoints = 10;
-        } else if (game.opponentScore > game.challengerScore) {
+        } else if (freshData.opponentScore > freshData.challengerScore) {
           opponentPoints = 10;
         } else {
           challengerPoints = 5;
           opponentPoints = 5;
         }
 
-        await updateDoc(doc(db, 'games', selectedGameId), {
+        // Spiel offiziell beenden
+        await updateDoc(gameRef, {
           status: 'finished',
         });
 
@@ -234,13 +267,14 @@ export default function App() {
           }
         };
 
-        await addPointsToUser(game.challenger, challengerPoints).catch(
+        await addPointsToUser(freshData.challenger, challengerPoints).catch(
           console.error
         );
-        await addPointsToUser(game.opponent, opponentPoints).catch(
+        await addPointsToUser(freshData.opponent, opponentPoints).catch(
           console.error
         );
       }
+
       setScreen('final_result');
     }
   };
@@ -266,7 +300,7 @@ export default function App() {
               const myAns = ans?.[isChallenger ? 'challenger' : 'opponent'];
 
               const bothDone =
-                !!ans && ans.challenger !== null && ans.opponent !== null;
+                !!ans && 'challenger' in ans && 'opponent' in ans;
 
               return {
                 ...g,
@@ -279,6 +313,9 @@ export default function App() {
               };
             })}
           onNewGame={() => setScreen('setup')}
+          onTraining={() =>
+            setScreen('training')
+          } /* <--- GENAU HIER IST DIE NEUE ZEILE! */
           onAcceptGame={(id) => {
             setSelectedGameId(id);
             setScreen('quiz');
@@ -351,6 +388,9 @@ export default function App() {
           }}
         />
       );
+
+    case 'training':
+      return <TrainingScreen onExit={() => setScreen('lobby')} />;
 
     default:
       return <div className="text-white p-10">Fehler: Unbekannter Zustand</div>;

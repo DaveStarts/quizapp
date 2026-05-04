@@ -8,7 +8,7 @@ interface QuizScreenProps {
   onFinish: (selectedIdx: number) => void;
   onExit: () => void;
   username: string;
-  game: any; // Enthält jetzt idealerweise game.questionIndices
+  game: any;
 }
 
 export default function QuizScreen({
@@ -23,44 +23,47 @@ export default function QuizScreen({
   const allTopicQuestions = ALL_QUESTIONS[topic] || ALL_QUESTIONS['Hygiene'];
 
   // 2. Synchronisierte Fragen-Auswahl
-  // Wir prüfen, ob im Firebase-Spielobjekt bereits eine feste Fragen-Reihenfolge hinterlegt wurde.
-  // Falls nicht (Fallback), nehmen wir die ersten 10 (nicht empfohlen für Multiplayer).
   const questionIndices = game.questionIndices || [
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
   ];
 
-  // Die aktuelle Frage basierend auf dem synchronisierten Index holen
   const currentQuestionDataIndex = questionIndices[questionIdx];
   const q = allTopicQuestions[currentQuestionDataIndex];
 
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState(90);
   const [hasAnsweredLocal, setHasAnsweredLocal] = useState(false);
 
-  // Status aus DB für diesen Spieler
+  // --- DIE MAGISCHE KORREKTUR ---
   const isChallenger = username === game.challenger;
   const currentAnswers = game.answers?.[questionIdx.toString()];
-  const myAnswerInDB = currentAnswers
-    ? isChallenger
-      ? currentAnswers.challenger
-      : currentAnswers.opponent
-    : null;
 
+  // Hole den Wert (kann undefined sein, wenn noch nicht geantwortet)
+  const rawAnswer = isChallenger
+    ? currentAnswers?.challenger
+    : currentAnswers?.opponent;
+
+  // Echter Check: Ist es eine Nummer? (0, 1, 2, 3)
+  const hasAnsweredDB = typeof rawAnswer === 'number';
+
+  // Reset beim Wechsel zur nächsten Frage
   useEffect(() => {
     setHasAnsweredLocal(false);
-    setTimeLeft(90);
+    setTimeLeft(90); // Auf 10 Sekunden korrigiert, damit die Progress-Bar funktioniert
   }, [questionIdx]);
 
+  // Timer-Logik
   useEffect(() => {
-    if (timeLeft > 0 && !hasAnsweredLocal && myAnswerInDB === null) {
+    if (timeLeft > 0 && !hasAnsweredLocal && !hasAnsweredDB) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timer);
-    } else if (timeLeft === 0 && !hasAnsweredLocal && myAnswerInDB === null) {
-      handleAnswer(-1);
+    } else if (timeLeft === 0 && !hasAnsweredLocal && !hasAnsweredDB) {
+      handleAnswer(-1); // Zeit abgelaufen -> Falsche Antwort (-1) triggern
     }
-  }, [timeLeft, hasAnsweredLocal, myAnswerInDB]);
+  }, [timeLeft, hasAnsweredLocal, hasAnsweredDB]);
 
+  // Antwort-Handler
   const handleAnswer = (selectedIdx: number) => {
-    if (hasAnsweredLocal || myAnswerInDB !== null) return;
+    if (hasAnsweredLocal || hasAnsweredDB) return;
     setHasAnsweredLocal(true);
     onFinish(selectedIdx);
   };
@@ -74,8 +77,8 @@ export default function QuizScreen({
     );
   }
 
-  // ... (Rest des Codes: Wartemodus und Aktive Frage bleibt identisch zu deinem Original)
-  if (hasAnsweredLocal || myAnswerInDB !== null) {
+  // Sicherer Check mit dem neuen hasAnsweredDB Boolean
+  if (hasAnsweredLocal || hasAnsweredDB) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
         <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6"></div>
@@ -83,7 +86,7 @@ export default function QuizScreen({
         <p className="text-slate-400 mb-10">Warte auf Gegner...</p>
         <button
           onClick={onExit}
-          className="w-full max-w-xs bg-slate-800 py-4 rounded-2xl flex items-center justify-center"
+          className="w-full max-w-xs bg-slate-800 py-4 rounded-2xl flex items-center justify-center hover:bg-slate-700 transition-colors"
         >
           <Home className="mr-2 w-5 h-5" /> Zurück zur Lobby
         </button>

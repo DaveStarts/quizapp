@@ -1,12 +1,13 @@
-import { Play, Plus, Trash2, Trophy } from 'lucide-react'; // Trophy Icon hinzugefügt
+import { Play, Plus, Trash2, Trophy, BrainCircuit, Swords } from 'lucide-react'; // Hab noch zwei coole Icons für die Buttons ergänzt!
 
 interface LobbyScreenProps {
   playerName: string;
-  playerScore: number; // NEU: Punktestand
+  playerScore: number;
   activeGames: any[];
   onNewGame: () => void;
   onAcceptGame: (gameId: string) => void;
   onDeleteGame: (gameId: string) => void;
+  onTraining: () => void; // <--- NEU: Diese Prop sagt der Lobby, was beim Klick auf "Training" passieren soll
 }
 
 export default function LobbyScreen({
@@ -16,6 +17,7 @@ export default function LobbyScreen({
   onNewGame,
   onAcceptGame,
   onDeleteGame,
+  onTraining, // <--- NEU: Hier auspacken
 }: LobbyScreenProps) {
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
@@ -25,17 +27,36 @@ export default function LobbyScreen({
           <div>
             <h1 className="text-3xl font-bold mb-2">Hallo, {playerName}!</h1>
             {/* Punktestand Anzeige */}
-            <div className="flex items-center text-amber-400 bg-amber-400/10 inline-flex px-4 py-2 rounded-xl border border-amber-400/20">
+            <div className="flex items-center text-amber-400 bg-amber-400/10 px-4 py-2 rounded-xl border border-amber-400/20 inline-flex">
               <Trophy className="w-5 h-5 mr-2" />
               <span className="font-bold">{playerScore} Punkte</span>
             </div>
           </div>
           <button
             onClick={onNewGame}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-2xl font-bold flex items-center transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-2xl font-bold flex items-center transition-all shadow-lg shadow-indigo-500/30 active:scale-95 hidden sm:flex"
           >
             <Plus className="w-6 h-6 mr-2" />
             Neues Spiel
+          </button>
+        </div>
+
+        {/* Die neuen Haupt-Buttons */}
+        <div className="flex space-x-4 mb-10">
+          <button
+            onClick={onNewGame}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-4 rounded-2xl shadow-lg flex items-center justify-center transition-all active:scale-95"
+          >
+            <Swords className="w-5 h-5 mr-2" />
+            Neues Duell
+          </button>
+
+          <button
+            onClick={onTraining} // <--- KORRIGIERT: Hier rufen wir jetzt die übergebene Funktion auf
+            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 px-4 rounded-2xl border border-slate-700 hover:border-slate-500 shadow-lg flex items-center justify-center transition-all active:scale-95"
+          >
+            <BrainCircuit className="w-5 h-5 mr-2" />
+            Training
           </button>
         </div>
 
