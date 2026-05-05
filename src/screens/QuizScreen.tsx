@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Timer, Loader2, Home } from 'lucide-react';
-import { ALL_QUESTIONS } from '../data/questions';
+import { getQuestionsForTopic } from '../data/questions';
 
 interface QuizScreenProps {
   topic: string;
@@ -20,7 +20,7 @@ export default function QuizScreen({
   game,
 }: QuizScreenProps) {
   // 1. Grundmenge der Fragen für das Thema holen
-  const allTopicQuestions = ALL_QUESTIONS[topic] || ALL_QUESTIONS['Hygiene'];
+  const allTopicQuestions = getQuestionsForTopic(topic);
 
   // 2. Synchronisierte Fragen-Auswahl
   const questionIndices = game.questionIndices || [

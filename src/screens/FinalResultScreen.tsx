@@ -1,4 +1,4 @@
-import { ALL_QUESTIONS } from '../data/questions';
+import { getQuestionsForTopic } from '../data/questions';
 import {
   CheckCircle2,
   XCircle,
@@ -42,8 +42,25 @@ export default function FinalResultScreen({
   }
 
   // AUSWERTUNG
-  const questions =
-    ALL_QUESTIONS[game.topic] || ALL_QUESTIONS['Allgemeinwissen'];
+  const questions = getQuestionsForTopic(game.topic);
+
+  // Falls das Thema (warum auch immer) nicht gefunden wird,
+  // verhindern wir einen Absturz durch eine Guard Clause
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
+        <p className="text-slate-400 mb-6">
+          Fehler: Fragen konnten nicht geladen werden.
+        </p>
+        <button
+          onClick={onExit}
+          className="bg-slate-800 px-6 py-3 rounded-xl flex items-center"
+        >
+          <Home className="mr-2 w-5 h-5" /> Zurück zur Lobby
+        </button>
+      </div>
+    );
+  }
 
   // 1. FIX: Wir nehmen die ECHTEN, synchronisierten Indizes aus dem Spiel!
   // Fallback ist ein Array von 0-9, falls etwas schiefgeht.

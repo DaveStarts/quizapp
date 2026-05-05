@@ -36,11 +36,6 @@ export default function SetupScreen({
   // =========================================================================
   const mainCategories = Object.keys(ALL_QUESTIONS);
 
-  // Wenn eine Hauptkategorie gewählt ist, holen wir uns deren Unterthemen:
-  const availableTopics = selectedMainCategory
-    ? Object.keys(ALL_QUESTIONS[selectedMainCategory])
-    : [];
-
   // Gegner aus Firebase laden
   useEffect(() => {
     const fetchOpponents = async () => {
@@ -58,7 +53,11 @@ export default function SetupScreen({
     fetchOpponents();
   }, [playerName]);
 
-  const isReady = selectedOpponent !== null && selectedTopic !== null;
+  const isReady =
+    selectedOpponent !== null &&
+    selectedTopic !== null &&
+    selectedMainCategory !== null &&
+    ALL_QUESTIONS[selectedMainCategory]?.[selectedTopic] !== undefined;
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 pb-24">
