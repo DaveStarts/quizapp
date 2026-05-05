@@ -23,7 +23,7 @@ import QuizScreen from './screens/QuizScreen';
 import ResultScreen from './screens/ResultScreen';
 import FinalResultScreen from './screens/FinalResultScreen';
 import TrainingScreen from './screens/TrainingScreen';
-import { ALL_QUESTIONS } from './data/questions'; // WICHTIG: Import für die Zufallslogik
+import { getQuestionsForTopic } from './data/questions';
 
 export type Screen =
   | 'login'
@@ -42,12 +42,10 @@ export default function App() {
 
   // --- HILFSFUNKTION FÜR RANDOM FRAGEN ---
   const generateQuestionIndices = (topic: string) => {
-    const questions =
-      ALL_QUESTIONS[topic] || ALL_QUESTIONS['Anatomie & Physiologie'];
+    const questions = getQuestionsForTopic(topic); // <--- HIER GEÄNDERT
     const total = questions.length;
-    // Erstelle Liste aller verfügbaren Indizes
+    if (total === 0) return [];
     const allIndices = Array.from({ length: total }, (_, i) => i);
-    // Mischen und die ersten 10 ziehen
     return allIndices.sort(() => Math.random() - 0.5).slice(0, 10);
   };
 
@@ -168,8 +166,7 @@ export default function App() {
       return;
     }
 
-    const topicQuestions =
-      ALL_QUESTIONS[game.topic] || ALL_QUESTIONS['Anatomie & Physiologie'];
+    const topicQuestions = getQuestionsForTopic(game.topic);
     const realQIdx = game.questionIndices
       ? game.questionIndices[myStep]
       : myStep;
