@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
-import { auth, db } from '../firebase';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { supabase } from '../supabase'; // Dein neuer Supabase Client
 import { Trophy, User, Lock, Loader2 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -23,48 +18,75 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setError('');
     setLoading(true);
 
-    // Wir machen aus dem Namen eine "falsche" E-Mail für Firebase
-    const fakeEmail = `${username.toLowerCase().trim()}@quiz-clash.de`;
+    // Wir machen aus dem Namen eine "falsche" E-Mail für Supabase
+    const cleanUsername = username.toLowerCase().trim().replace(/\s+/g, '');
+    const fakeEmail = `${cleanUsername}@quiz-clash.local`;
 
     try {
       if (isRegistering) {
-        // 1. User Account erstellen
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          fakeEmail,
-          password
+        // ==========================================
+        // 1. REGISTRIERUNG
+        // ==========================================
+        const { data: authData, error: authError } = await supabase.auth.signUp(
+          {
+            email: fakeEmail,
+            password: password,
+          }
         );
-        const user = userCredential.user;
 
-        // 2. Spielstand in der Datenbank (Firestore) anlegen
-        const userData = {
-          uid: user.uid,
-          username: username,
-          totalPoints: 0,
-          gamesPlayed: 0,
-        };
-        await setDoc(doc(db, 'users', user.uid), userData);
-        onLogin(userData);
+        if (authError) throw authError;
+
+        if (authData.user) {
+          // Profil in der Datenbank anlegen
+          const userData = {
+            id: authData.user.id,
+            username: username.trim(),
+            totalpoints: 0,
+            // gamesPlayed: 0, // Falls du diese Spalte auch in Supabase angelegt hast, hier entkommentieren
+          };
+
+          const { error: dbError } = await supabase
+            .from('users')
+            .insert([userData]);
+
+          if (dbError)
+            throw new Error('Spielername ist eventuell schon vergeben.');
+
+          // Erfolgreich registriert -> Einloggen
+          onLogin(userData);
+        }
       } else {
-        // Login
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          fakeEmail,
-          password
-        );
+        // ==========================================
+        // 2. LOGIN
+        // ==========================================
+        const { data: authData, error: authError } =
+          await supabase.auth.signInWithPassword({
+            email: fakeEmail,
+            password: password,
+          });
 
-        // Spielstand vom Server laden
-        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-        if (userDoc.exists()) {
-          onLogin(userDoc.data());
+        if (authError)
+          throw new Error('Passwort falsch oder Nutzer nicht gefunden.');
+
+        if (authData.user) {
+          // Spielstand vom Supabase-Server laden
+          const { data: userData, error: dbError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single(); // .single() sagt Supabase: Wir erwarten genau EINE Zeile als Ergebnis
+
+          if (dbError) throw new Error('Profil konnte nicht geladen werden.');
+
+          // Erfolgreich eingeloggt -> Daten übergeben
+          if (userData) {
+            onLogin(userData);
+          }
         }
       }
     } catch (err: any) {
-      setError(
-        err.message.includes('auth/user-not-found')
-          ? 'Nutzer nicht gefunden'
-          : 'Passwort falsch oder Name schon vergeben'
-      );
+      console.error(err);
+      setError(err.message || 'Ein unbekannter Fehler ist aufgetreten.');
     } finally {
       setLoading(false);
     }
@@ -129,7 +151,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </form>
 
         <button
-          onClick={() => setIsRegistering(!isRegistering)}
+          onClick={() => {
+            setIsRegistering(!isRegistering);
+            setError(''); // Fehler beim Wechseln zurücksetzen
+          }}
           className="w-full mt-6 text-slate-400 hover:text-white text-sm transition-colors"
         >
           {isRegistering

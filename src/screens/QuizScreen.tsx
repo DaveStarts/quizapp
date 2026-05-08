@@ -7,7 +7,7 @@ interface QuizScreenProps {
   questionIdx: number;
   onFinish: (selectedIdx: number) => void;
   onExit: () => void;
-  username: string;
+  userId: string; // Geändert: userId statt username für eindeutigen Abgleich
   game: any;
 }
 
@@ -16,39 +16,37 @@ export default function QuizScreen({
   questionIdx,
   onFinish,
   onExit,
-  username,
+  userId,
   game,
 }: QuizScreenProps) {
-  // 1. Grundmenge der Fragen für das Thema holen
   const allTopicQuestions = getQuestionsForTopic(topic);
 
-  // 2. Synchronisierte Fragen-Auswahl
-  const questionIndices = game.questionIndices || [
+  // Synchronisierte Fragen-Auswahl aus der games-Tabelle (jsonb Feld)
+  const questionIndices = game.question_indices || [
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
   ];
 
   const currentQuestionDataIndex = questionIndices[questionIdx];
   const q = allTopicQuestions[currentQuestionDataIndex];
 
-  const [timeLeft, setTimeLeft] = useState(90);
+  const [timeLeft, setTimeLeft] = useState(10); // Standardmäßig 10s für Quiz
   const [hasAnsweredLocal, setHasAnsweredLocal] = useState(false);
 
-  // --- DIE MAGISCHE KORREKTUR ---
-  const isChallenger = username === game.challenger;
+  // Rollen-Check anhand der UUID
+  const isChallenger = userId === game.challenger_id;
   const currentAnswers = game.answers?.[questionIdx.toString()];
 
-  // Hole den Wert (kann undefined sein, wenn noch nicht geantwortet)
+  // Antwort-Check aus der Datenbank
   const rawAnswer = isChallenger
     ? currentAnswers?.challenger
     : currentAnswers?.opponent;
 
-  // Echter Check: Ist es eine Nummer? (0, 1, 2, 3)
   const hasAnsweredDB = typeof rawAnswer === 'number';
 
   // Reset beim Wechsel zur nächsten Frage
   useEffect(() => {
     setHasAnsweredLocal(false);
-    setTimeLeft(90); // Auf 10 Sekunden korrigiert, damit die Progress-Bar funktioniert
+    setTimeLeft(10);
   }, [questionIdx]);
 
   // Timer-Logik
@@ -57,11 +55,10 @@ export default function QuizScreen({
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timer);
     } else if (timeLeft === 0 && !hasAnsweredLocal && !hasAnsweredDB) {
-      handleAnswer(-1); // Zeit abgelaufen -> Falsche Antwort (-1) triggern
+      handleAnswer(-1); // Timeout
     }
   }, [timeLeft, hasAnsweredLocal, hasAnsweredDB]);
 
-  // Antwort-Handler
   const handleAnswer = (selectedIdx: number) => {
     if (hasAnsweredLocal || hasAnsweredDB) return;
     setHasAnsweredLocal(true);
@@ -77,7 +74,7 @@ export default function QuizScreen({
     );
   }
 
-  // Sicherer Check mit dem neuen hasAnsweredDB Boolean
+  // Ladebildschirm wenn gewartet wird
   if (hasAnsweredLocal || hasAnsweredDB) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
@@ -86,7 +83,7 @@ export default function QuizScreen({
         <p className="text-slate-400 mb-10">Warte auf Gegner...</p>
         <button
           onClick={onExit}
-          className="w-full max-w-xs bg-slate-800 py-4 rounded-2xl flex items-center justify-center hover:bg-slate-700 transition-colors"
+          className="w-full max-w-xs bg-slate-800 py-4 rounded-2xl flex items-center justify-center hover:bg-slate-700 transition-colors border border-slate-700"
         >
           <Home className="mr-2 w-5 h-5" /> Zurück zur Lobby
         </button>
@@ -112,6 +109,7 @@ export default function QuizScreen({
         </div>
 
         <div className="bg-slate-800 p-10 rounded-[2.5rem] border border-slate-700 mb-10 shadow-2xl text-center relative overflow-hidden">
+          {/* Progress Bar (orientiert an 10 Sekunden) */}
           <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/20">
             <div
               className="h-full bg-indigo-500 transition-all duration-1000 ease-linear"

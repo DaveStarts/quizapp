@@ -4,21 +4,28 @@ interface ResultScreenProps {
   game: any;
   onNext: () => void;
   onExit: () => void;
-  username: string;
+  userId: string; // Geändert: userId statt username
 }
 
 export default function ResultScreen({
   game,
   onNext,
   onExit,
-  username,
+  userId,
 }: ResultScreenProps) {
-  const isChallenger = username === game.challenger;
-  const myStep = (isChallenger ? game.challengerStep : game.opponentStep) || 0;
-  const opponentName = isChallenger ? game.opponent : game.challenger;
+  // Logik auf UUIDs umstellen
+  const isChallenger = userId === game.challenger_id;
 
-  // Wir prüfen nur noch, ob die Daten da sind, um Abstürze zu vermeiden.
-  // Das tatsächliche Ergebnis werten wir hier absichtlich nicht mehr aus!
+  // Snake Case beachten: challenger_step statt challengerStep
+  const myStep =
+    (isChallenger ? game.challenger_step : game.opponent_step) || 0;
+
+  // Hier müsstest du in der App.tsx sicherstellen, dass die Namen mitgeladen wurden
+  // oder wir nehmen einen Platzhalter, falls die Namen nicht direkt im game-Objekt stecken
+  const opponentName = isChallenger
+    ? game.opponent_name || 'Gegner'
+    : game.challenger_name || 'Herausforderer';
+
   const stepKey = myStep.toString();
   const currentAnswers = game.answers?.[stepKey];
 
@@ -80,7 +87,6 @@ export default function ResultScreen({
             <ArrowRight className="ml-3 w-6 h-6" />
           </button>
 
-          {/* Zurück zur Lobby */}
           <button
             onClick={onExit}
             className="w-full bg-slate-700/50 hover:bg-slate-700 py-4 rounded-2xl font-semibold text-slate-300 flex items-center justify-center transition-all active:scale-95 border border-slate-600/50"
